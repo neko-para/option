@@ -49,8 +49,7 @@ namespace OPTION {
 		string name;
 		bool cap;
 		string reg;
-		_Req(const string& n) : _Req(n, false, n) {}
-		_Req(const string& n, bool c, const string& r = ".+") : name(n), cap(c), reg(r) {}
+		_Req(const string& n, bool c, const string& r) : name(n), cap(c), reg(r) {}
 		bool capture() const {
 			return cap;
 		}
@@ -133,21 +132,31 @@ namespace OPTION {
 			return ret;
 		}
 	};
-	
+
+	inline shared_ptr<_Req> Capture(const string& name, const string& reg = ".+") {
+		return Req(name, true, reg);
+	}
+
+	inline shared_ptr<_Req> Uncapture(const string& name, const string& reg) {
+		return Req(name, false, reg);
+	}
+
+	inline shared_ptr<_Req> Uncapture(const string& name) {
+		return Req(name, false, name);
+	}
+
 	struct _Option {
 		shared_ptr<OptionRequire> req;
 		shared_ptr<OptionAction> act;
-		
-		_Option() : req(new OptionRequire) {}
-		template <typename... Arg>
-		_Option(Function f, const Arg&... arg) : _Option(arg...) {
-			act = shared_ptr<_Action>(new _Action(f));
+
+		_Option(shared_ptr<OptionAction> a) : req(new OptionRequire) {
+			act = a;
 		}
+		_Option(Function f) : _Option(shared_ptr<_Action>(new _Action(f))) {}
 		template <typename... Arg>
 		_Option(shared_ptr<_Req> r, const Arg&... arg) : _Option(arg...) {
 			req->req.emplace_back(r);
 		}
-		_Option(shared_ptr<OptionAction> a) : req(new OptionRequire), act(a) {}
 		bool test(ArgList& a) const {
 			return req->test(a);
 		}
