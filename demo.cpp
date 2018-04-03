@@ -5,14 +5,14 @@
 using namespace OPTION;
 
 int main(int argc, char* argv[]) {
-	auto option = Option(Chooser(
-		Option(Uncapture("touch"), Capture("file"), (Function)[](const ParamList& p) {
-			if (access(p[0].c_str(), F_OK) < 0) {
-				creat(p[0].c_str(), 644);
+	auto option = Option(Chooser(true,
+		Option(Uncapture("touch"), Capture("file"), (Function)[](ParamList& p) {
+			if (access(p["file"].c_str(), F_OK) < 0) {
+				creat(p["file"].c_str(), 644);
 			}
 		}),
-		Option(Uncapture("rm"), Capture("file"), (Function)[](const ParamList& p) {
-			unlink(p[0].c_str());
+		Option(Uncapture("rm"), Capture("file"), (Function)[](ParamList& p) {
+			unlink(p["file"].c_str());
 		})
 	));
 	option->start(argc, argv);

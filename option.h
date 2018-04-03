@@ -1,4 +1,5 @@
 #include <vector>
+#include <unordered_map>
 #include <string>
 #include <set>
 #include <memory>
@@ -10,6 +11,7 @@
 namespace OPTION {
 	
 	using std::vector;
+	using std::unordered_map;
 	using std::function;
 	using std::string;
 	using std::set;
@@ -22,8 +24,8 @@ namespace OPTION {
 	using std::cerr;
 	using std::endl;
 	
-	typedef vector<string> ParamList;
-	typedef function<void(const ParamList&)> GenericFunction;
+	typedef unordered_map<string, string> ParamList;
+	typedef function<void(ParamList&)> GenericFunction;
 	
 	struct Wrapper {
 		function<void(void)> func;
@@ -36,11 +38,11 @@ namespace OPTION {
 	
 	struct Function {
 		GenericFunction func;
-		Function() : func([](const ParamList&) {}) {}
+		Function() : func([](ParamList&) {}) {}
 		Function(GenericFunction f) : func(f) {}
 		Function(function<void(void)> f) : func(Wrapper(f)) {}
 		virtual ~Function() {}
-		void operator()(const ParamList& p) {
+		void operator()(ParamList& p) {
 			func(p);
 		}
 	};
@@ -67,7 +69,7 @@ namespace OPTION {
 	}
 	
 	struct ArgList {
-		ParamList data;
+		vector<string> data;
 		unsigned ptr;
 		
 		ArgList(int argc, char** argv) {
@@ -119,7 +121,7 @@ namespace OPTION {
 		void capture(ArgList& arg, ParamList& param) {
 			for (unsigned i = req.size() - 1; ~i; --i) {
 				if (req[i]->capture()) {
-					param.emplace_back(arg.peek(req.size() - i - 1));
+					param[req[i]->name] = arg.peek(req.size() - i - 1);
 				}
 			}
 			arg.go(req.size());
@@ -186,12 +188,13 @@ namespace OPTION {
 	struct Post : public Function {
 		using Function::Function;
 	};
-	
+
 	struct _Chooser : public OptionAction {
 		vector<shared_ptr<_Option>> choice;
 		Function prev, post;
+		bool loop;
 		
-		_Chooser() {}
+		_Chooser() : loop(false) {}
 		template <typename... Arg>
 		_Chooser(shared_ptr<_Option> o, const Arg&... arg) : _Chooser(arg...) {
 			choice.emplace_back(o);
@@ -204,14 +207,24 @@ namespace OPTION {
 		_Chooser(Post p, const Arg&... arg) : _Chooser(arg...) {
 			post = p.func;
 		}
+		template <typename... Arg>
+		_Chooser(bool l, const Arg&... arg) : _Chooser(arg...) {
+			loop = l;
+		}
 		virtual void parse(ArgList& a, ParamList& p) {
 			prev(p);
-			for (unsigned i = choice.size() - 1; ~i; --i) {
-				if (choice[i]->test(a)) {
-					choice[i]->parse(a, p);
-					post(p);
+			bool fetch;
+			do {
+				fetch = false;
+				for (unsigned i = choice.size() - 1; ~i; --i) {
+					if (choice[i]->test(a)) {
+						choice[i]->parse(a, p);
+						fetch = true;
+						break;
+					}
 				}
-			}
+			} while (fetch && loop);
+			post(p);
 		}
 		string help(string pref) const {
 			string ret;
