@@ -46,26 +46,57 @@ namespace OPTION {
 			func(p);
 		}
 	};
-	
-	struct _Req {
+
+	struct ReqBase {
 		string name;
 		bool cap;
-		string reg;
-		_Req(const string& n, bool c, const string& r) : name(n), cap(c), reg(r) {}
+		ReqBase(const string& n, bool c) : name(n), cap(c) {}
 		bool capture() const {
 			return cap;
 		}
+		virtual bool test(const char* s) const = 0;
+		virtual string help() const = 0;
+	};
+
+	struct RegexTester {
+		string rgx;
+		RegexTester(const string&, bool, const string& r = ".+") : rgx(r) {}
 		bool test(const char* s) const {
-			return regex_match(s, regex(reg));
+			return regex_match(s, regex(rgx));
 		}
 		string help() const {
-			return name + ":/" + reg + "/";
+			return "/" + rgx + "/";
+		}
+	};
+
+	struct CompareTester {
+		string str;
+		CompareTester(const string& name, bool) : str(name) {}
+		CompareTester(const string&, bool, const string& s) : str(s) {}
+		bool test(const char* s) const {
+			return s == str;
+		}
+		string help() const {
+			return "<" + str + ">";
+		}
+	};
+
+	template <typename Test>
+	struct _Req : public ReqBase {
+		Test tester;
+		template <typename... Arg>
+		_Req(const string& n, bool c, const Arg&... arg) : ReqBase(n, c), tester(n, c, arg...) {}
+		virtual bool test(const char* s) const {
+			return tester.test(s);
+		}
+		virtual string help() const {
+			return name + ":" + tester.help();
 		}
 	};
 	
-	template <typename... Arg>
-	shared_ptr<_Req> Req(const Arg&... arg) {
-		return shared_ptr<_Req>(new _Req(arg...));
+	template <typename Test, typename... Arg>
+	shared_ptr<ReqBase> Req(const Arg&... arg) {
+		return shared_ptr<ReqBase>(new _Req<Test>(arg...));
 	}
 	
 	struct ArgList {
@@ -104,7 +135,7 @@ namespace OPTION {
 	};
 
 	struct OptionRequire {
-		vector<shared_ptr<_Req>> req;
+		vector<shared_ptr<ReqBase>> req;
 		
 		OptionRequire() {}
 		bool test(const ArgList& arg) const {
@@ -135,16 +166,14 @@ namespace OPTION {
 		}
 	};
 
-	inline shared_ptr<_Req> Capture(const string& name, const string& reg = ".+") {
-		return Req(name, true, reg);
+	template <typename... Arg, typename Test = RegexTester>
+	inline shared_ptr<ReqBase> Capture(const string& name, const Arg&... arg) {
+		return Req<Test>(name, true, arg...);
 	}
 
-	inline shared_ptr<_Req> Uncapture(const string& name, const string& reg) {
-		return Req(name, false, reg);
-	}
-
-	inline shared_ptr<_Req> Uncapture(const string& name) {
-		return Req(name, false, name);
+	template <typename... Arg, typename Test = CompareTester>
+	inline shared_ptr<ReqBase> Uncapture(const string& name, const Arg&... arg) {
+		return Req<Test>(name, false, arg...);
 	}
 
 	struct _Option {
@@ -156,7 +185,7 @@ namespace OPTION {
 		}
 		_Option(Function f) : _Option(shared_ptr<_Action>(new _Action(f))) {}
 		template <typename... Arg>
-		_Option(shared_ptr<_Req> r, const Arg&... arg) : _Option(arg...) {
+		_Option(shared_ptr<ReqBase> r, const Arg&... arg) : _Option(arg...) {
 			req->req.emplace_back(r);
 		}
 		bool test(ArgList& a) const {
@@ -251,5 +280,14 @@ namespace OPTION {
 		}
 		return ret;
 	}
+
+	namespace Util {
+		using OPTION::Option;
+		using OPTION::Chooser;
+		using OPTION::Capture;
+		using OPTION::Uncapture;
+		using OPTION::Function;
+		using OPTION::ParamList;
+	};
 
 }

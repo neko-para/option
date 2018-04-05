@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-using namespace OPTION;
+using namespace OPTION::Util;
 
 int main(int argc, char* argv[]) {
 	auto option = Option(Chooser(true,
